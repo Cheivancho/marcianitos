@@ -158,7 +158,7 @@ export default function Compras() {
                   <Text style={styles.nombre}>{r.insumo}</Text>
                   <Text style={styles.detalle}>
                     {r.compras} {r.compras === 1 ? 'compra' : 'compras'} · cantidad {Math.round(r.cantidad * 100) / 100}
-                    {r.es_bolsitas ? ' paq.' : ''}
+                    
                   </Text>
                 </View>
                 <Text style={styles.monto}>{pesos(r.total)}</Text>
@@ -198,7 +198,7 @@ export default function Compras() {
           </View>
         )}
         <Campo
-          etiqueta={elegido?.es_bolsitas ? 'Cantidad de paquetes' : 'Cantidad (kilos, unidades, paquetes...)'}
+          etiqueta={elegido?.es_bolsitas ? 'Cantidad de bolsitas (contá las que trajo el paquete)' : 'Cantidad (kilos, unidades, paquetes...)'}
           value={cantidad}
           onChangeText={(t) => setCantidad(t.replace(/[^0-9.,]/g, ''))}
           keyboardType="decimal-pad"

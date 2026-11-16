@@ -235,19 +235,18 @@ export function listarTandas(db: SQLiteDatabase, limite = 20) {
   );
 }
 
-export type EstadoBolsitas = { quedan: number; alerta: number; porPaquete: number; hechos: number; comprados: number };
+export type EstadoBolsitas = { quedan: number; alerta: number; hechos: number; comprados: number };
 
 export async function estadoBolsitas(db: SQLiteDatabase): Promise<EstadoBolsitas> {
-  const porPaquete = await leerConfigNumero(db, 'bolsitas_por_paquete', 100);
   const alerta = await leerConfigNumero(db, 'bolsitas_alerta', 30);
   const ajuste = await leerConfigNumero(db, 'bolsitas_ajuste', 0);
   const c = await db.getFirstAsync<{ n: number | null }>(
     'SELECT SUM(c.cantidad) AS n FROM compras c JOIN insumos i ON i.id = c.insumo_id WHERE i.es_bolsitas = 1',
   );
   const t = await db.getFirstAsync<{ n: number | null }>('SELECT SUM(cantidad) AS n FROM tanda_items');
-  const comprados = Math.round((c?.n ?? 0) * porPaquete);
+  const comprados = Math.round(c?.n ?? 0);
   const hechos = t?.n ?? 0;
-  return { quedan: comprados + ajuste - hechos, alerta, porPaquete, hechos, comprados };
+  return { quedan: comprados + ajuste - hechos, alerta, hechos, comprados };
 }
 
 /** Corrige el stock: "tengo N bolsitas ahora". */

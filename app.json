@@ -27,6 +27,7 @@
         }
       ],
       ["expo-image-picker", {"cameraPermission": "Marcianitos usa la cámara para sacar la foto del ticket de compra.", "photosPermission": "Marcianitos usa tus fotos para guardar el ticket de compra."}],
+      ["expo-notifications", {"color": "#E8588A"}],
       "expo-sharing",
       "expo-status-bar"
     ],

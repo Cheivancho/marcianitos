@@ -9,6 +9,7 @@ import { Ventana } from '@/components/Ventana';
 import { guardarConfig, listarSabores } from '@/db/consultas';
 import { borrarTanda, corregirBolsitas, crearTanda, estadoBolsitas, EstadoBolsitas, listarTandas } from '@/db/negocio';
 import type { Sabor } from '@/db/tipos';
+import { avisarSiPocas } from '@/lib/avisos';
 import { fechaCorta } from '@/lib/fechas';
 import { colors, radius, space } from '@/theme';
 
@@ -24,7 +25,6 @@ export default function Bolsitas() {
   const [cantidades, setCantidades] = useState<Record<number, number>>({});
   const [ajustes, setAjustes] = useState(false);
   const [tengo, setTengo] = useState('');
-  const [porPaquete, setPorPaquete] = useState('');
   const [alerta, setAlerta] = useState('');
 
   const cargar = useCallback(async () => {
@@ -49,17 +49,16 @@ export default function Bolsitas() {
     await crearTanda(db, sabores.map((s) => ({ sabor_id: s.id, cantidad: cantidades[s.id] ?? 0 })));
     setNueva(false);
     await cargar();
+    await avisarSiPocas(db);
   }
 
   async function guardarAjustes() {
-    const pp = Number(porPaquete);
     const al = Number(alerta);
-    if (!(pp > 0)) return Alert.alert('Revisá', 'Las bolsitas por paquete tienen que ser más que cero.');
-    await guardarConfig(db, 'bolsitas_por_paquete', pp);
     await guardarConfig(db, 'bolsitas_alerta', al);
     if (tengo !== '') await corregirBolsitas(db, Number(tengo));
     setAjustes(false);
     await cargar();
+    await avisarSiPocas(db);
   }
 
   function borrar(t: Tanda) {
@@ -97,7 +96,6 @@ export default function Bolsitas() {
           variante="suave"
           onPress={() => {
             setTengo('');
-            setPorPaquete(String(estado.porPaquete));
             setAlerta(String(estado.alerta));
             setAjustes(true);
           }}
@@ -119,7 +117,7 @@ export default function Bolsitas() {
           ))}
         </View>
         <Text style={styles.nota}>
-          Cada tanda descuenta una bolsita por jugito. Las bolsitas se suman cuando registrás una compra de "Bolsitas 4x25 cm" (cantidad = paquetes).
+          Cada tanda descuenta una bolsita por jugito. Las bolsitas se suman cuando registrás una compra de "Bolsitas 4x25 cm": ahí anotás cuántas trajo el paquete.
         </Text>
       </ScrollView>
 
@@ -144,7 +142,6 @@ export default function Bolsitas() {
       </Ventana>
 
       <Ventana visible={ajustes} titulo="Ajustes de bolsitas" onCerrar={() => setAjustes(false)}>
-        <Campo etiqueta="Bolsitas que trae cada paquete" value={porPaquete} onChangeText={(t) => setPorPaquete(t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={5} />
         <Campo etiqueta="Avisar cuando queden (o menos)" value={alerta} onChangeText={(t) => setAlerta(t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={5} />
         <Campo
           etiqueta="¿Contaste y no coincide? Escribí cuántas tenés ahora"

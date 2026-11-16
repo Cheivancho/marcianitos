@@ -77,9 +77,9 @@ Supuesto: el descuento se calcula contando por separado las unidades de crema y 
 
 Pagos dentro de la app, catálogo para clientes, integración con WhatsApp o Instagram, ganancia por sabor según el costo de cada receta, control de cantidad exacta de todos los insumos, varios usuarios.
 
-## Para confirmar con ella (antes o después de la primera versión)
+## Confirmado con ella
 
-1. ¿"Ganado" y "perdido" son lo que entendimos (plata cobrada y plata gastada) o quiere verlos de otra forma?
-2. ¿Cuántas bolsitas trae un paquete y con cuántas quiere que avise?
-3. ¿El descuento por cantidad se cuenta por tipo (crema y agua por separado), como se supuso?
-4. ¿Prefiere ver el aviso de bolsitas dentro de la app o también como notificación del celular?
+1. "Ganado" = plata cobrada y "perdido" = plata gastada en compras. Confirmado.
+2. Un paquete de bolsitas trae entre 50 y 70 (nunca lo mismo): en cada compra se anota cuántas bolsitas trajo. Avisa con 30 o menos.
+3. El descuento por cantidad se cuenta por tipo (crema y agua por separado). Confirmado.
+4. El aviso de bolsitas va dentro de la app y también como notificación del celular (local, sin internet).
