@@ -72,7 +72,7 @@ export default function Pedidos() {
             </View>
             {ant ? (
               <View style={{ flex: 1 }}>
-                <Boton titulo="↩ Volver" variante="secundario" chico onPress={() => pasar(p, ant)} />
+                <Boton titulo="Volver" variante="secundario" chico onPress={() => pasar(p, ant)} />
               </View>
             ) : null}
           </View>

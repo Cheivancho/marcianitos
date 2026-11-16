@@ -113,7 +113,7 @@ export default function Respaldo() {
       <View style={styles.tarjeta}>
         <Text style={styles.titulo}>Copia de seguridad</Text>
         <Text style={styles.texto}>
-          Guarda todos tus datos en un archivo. Mandalo por WhatsApp o guardalo en Drive, así no los perdés si se rompe el celu.
+          Guardá todos tus datos en un archivo. Mandalo por WhatsApp o guardalo en Drive, así no los perdés si se rompe el celu.
         </Text>
         <Boton titulo="Guardar copia" onPress={copia} deshabilitado={ocupada} />
       </View>
