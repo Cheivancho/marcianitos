@@ -1,6 +1,6 @@
 # Brief: app "Marcianitos" (Android)
 
-App de gestión para el emprendimiento de jugitos caseros de una chica de 16 años. La usa **solo ella**, desde su celular. Todo está pensado para que casi no tenga que escribir: botones y listas.
+App de gestión para el emprendimiento de jugitos caseros de una emprendedora joven. La usa **solo ella**, desde su celular. Todo está pensado para que casi no tenga que escribir: botones y listas.
 
 ## Objetivo
 

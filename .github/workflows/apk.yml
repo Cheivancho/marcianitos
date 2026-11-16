@@ -44,6 +44,9 @@ jobs:
 
       - name: Compilar
         working-directory: android
+        env:
+          # La app lo usa para saber si hay una versión más nueva en el release.
+          EXPO_PUBLIC_BUILD_NUMBER: ${{ github.run_number }}
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Publicar en el release "ultima"
@@ -54,4 +57,4 @@ jobs:
           gh release delete ultima --cleanup-tag --yes || true
           gh release create ultima marcianitos.apk \
             --title "Marcianitos (última versión)" \
-            --notes "APK compilado automáticamente del commit ${GITHUB_SHA::7}. Instalar encima de la versión anterior conserva los datos."
+            --notes "build=${{ github.run_number }} · APK compilado automáticamente del commit ${GITHUB_SHA::7}. Instalar encima de la versión anterior conserva los datos."

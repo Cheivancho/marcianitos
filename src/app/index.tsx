@@ -1,10 +1,11 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Chips } from '@/components/Chips';
 import { Pantalla } from '@/components/Pantalla';
 import { estadoBolsitas, EstadoBolsitas, resumen } from '@/db/negocio';
+import { bajarEInstalar, buscarActualizacion, Novedad } from '@/lib/actualizar';
 import { Periodo, rangoDe } from '@/lib/fechas';
 import { pesos } from '@/lib/formato';
 import { colors, radius, space } from '@/theme';
@@ -17,12 +18,15 @@ export default function Inicio() {
   const [periodo, setPeriodo] = useState<Periodo>('hoy');
   const [datos, setDatos] = useState<Datos | null>(null);
   const [bolsitas, setBolsitas] = useState<EstadoBolsitas | null>(null);
+  const [novedad, setNovedad] = useState<Novedad | null>(null);
+  const [bajando, setBajando] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       const { desde, hasta } = rangoDe(periodo);
       resumen(db, desde, hasta).then(setDatos);
       estadoBolsitas(db).then(setBolsitas);
+      buscarActualizacion().then(setNovedad);
     }, [db, periodo]),
   );
 
@@ -43,6 +47,26 @@ export default function Inicio() {
             { valor: 'mes', titulo: 'Este mes' },
           ]}
         />
+
+        {novedad ? (
+          <Pressable
+            disabled={bajando}
+            onPress={async () => {
+              setBajando(true);
+              try {
+                await bajarEInstalar(novedad.urlApk);
+              } catch {
+                Alert.alert('No se pudo actualizar', 'Revisá tu internet y probá de nuevo.');
+              } finally {
+                setBajando(false);
+              }
+            }}
+            style={styles.novedad}
+          >
+            {bajando ? <ActivityIndicator color={colors.blanco} /> : null}
+            <Text style={styles.novedadTexto}>{bajando ? 'Bajando la versión nueva...' : '✨ Hay una versión nueva. Tocá para actualizar'}</Text>
+          </Pressable>
+        ) : null}
 
         {pocas ? (
           <Pressable onPress={() => router.push('/mas/bolsitas' as never)} style={styles.aviso}>
@@ -104,6 +128,8 @@ export default function Inicio() {
 }
 
 const styles = StyleSheet.create({
+  novedad: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: space.s, backgroundColor: colors.rosa, borderRadius: radius.medio, padding: space.m, minHeight: 56 },
+  novedadTexto: { fontSize: 17, fontWeight: '800', color: colors.blanco, textAlign: 'center' },
   aviso: { backgroundColor: '#FFE9E9', borderWidth: 2, borderColor: colors.rojo, borderRadius: radius.medio, padding: space.m },
   avisoTexto: { fontSize: 17, fontWeight: '800', color: colors.rojo, textAlign: 'center' },
   numero: { borderRadius: radius.medio, padding: space.m, alignItems: 'center' },
