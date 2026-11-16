@@ -26,6 +26,7 @@
           "imageWidth": 120
         }
       ],
+      ["expo-image-picker", {"cameraPermission": "Marcianitos usa la cámara para sacar la foto del ticket de compra.", "photosPermission": "Marcianitos usa tus fotos para guardar el ticket de compra."}],
       "expo-sharing",
       "expo-status-bar"
     ],
