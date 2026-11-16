@@ -1,0 +1,57 @@
+name: Compilar APK
+
+# Cada vez que se sube un cambio a main se compila el APK y se actualiza el release "ultima".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      - name: Generar proyecto nativo
+        run: |
+          npx expo prebuild --platform android --no-install
+          sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=armeabi-v7a,arm64-v8a/' android/gradle.properties
+
+      - name: Firmar con la clave de la app
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > android/app/debug.keystore
+
+      - name: Compilar
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Publicar en el release "ultima"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/*.apk marcianitos.apk
+          gh release delete ultima --cleanup-tag --yes || true
+          gh release create ultima marcianitos.apk \
+            --title "Marcianitos (última versión)" \
+            --notes "APK compilado automáticamente del commit ${GITHUB_SHA::7}. Instalar encima de la versión anterior conserva los datos."
