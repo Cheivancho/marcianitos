@@ -86,4 +86,67 @@ export async function migrar(db: SQLiteDatabase) {
       await db.execAsync('PRAGMA user_version = 1');
     });
   }
+  if (version < 2) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE ventas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sabor_id INTEGER NOT NULL REFERENCES sabores(id),
+          precio INTEGER NOT NULL,
+          metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia')),
+          fecha TEXT NOT NULL
+        );
+        CREATE INDEX ventas_fecha ON ventas(fecha);
+
+        CREATE TABLE pedidos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+          fecha_entrega TEXT NOT NULL,
+          estado TEXT NOT NULL DEFAULT 'por_preparar' CHECK (estado IN ('por_preparar', 'preparado', 'entregado')),
+          precio_total INTEGER NOT NULL,
+          forma_pago TEXT NOT NULL DEFAULT 'efectivo' CHECK (forma_pago IN ('efectivo', 'transferencia')),
+          creado TEXT NOT NULL
+        );
+
+        CREATE TABLE pedido_items (
+          pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+          sabor_id INTEGER NOT NULL REFERENCES sabores(id),
+          cantidad INTEGER NOT NULL,
+          PRIMARY KEY (pedido_id, sabor_id)
+        );
+
+        CREATE TABLE pagos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+          monto INTEGER NOT NULL,
+          metodo TEXT NOT NULL CHECK (metodo IN ('efectivo', 'transferencia')),
+          fecha TEXT NOT NULL
+        );
+
+        CREATE TABLE compras (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          insumo_id INTEGER NOT NULL REFERENCES insumos(id),
+          cantidad REAL NOT NULL,
+          precio_total INTEGER NOT NULL,
+          fecha TEXT NOT NULL,
+          foto TEXT
+        );
+        CREATE INDEX compras_fecha ON compras(fecha);
+
+        CREATE TABLE tandas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          fecha TEXT NOT NULL
+        );
+
+        CREATE TABLE tanda_items (
+          tanda_id INTEGER NOT NULL REFERENCES tandas(id) ON DELETE CASCADE,
+          sabor_id INTEGER NOT NULL REFERENCES sabores(id),
+          cantidad INTEGER NOT NULL,
+          PRIMARY KEY (tanda_id, sabor_id)
+        );
+      `);
+      await db.runAsync('INSERT OR IGNORE INTO config VALUES (?, ?)', 'bolsitas_ajuste', '0');
+      await db.execAsync('PRAGMA user_version = 2');
+    });
+  }
 }
