@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SQLiteProvider } from 'expo-sqlite';
 import { Suspense } from 'react';
 import { ActivityIndicator, ColorValue, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { migrar } from '@/db/migraciones';
 import { colors } from '@/theme';
 
@@ -34,8 +35,10 @@ export default function Layout() {
 }
 
 function Navegacion() {
+  // Franja de color detrás de los botones del celu (atrás, inicio, ventanas), que quedan sobre la app.
+  const { bottom } = useSafeAreaInsets();
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: colors.rosaClaro }}>
       <StatusBar style="dark" />
       <Tabs
         screenOptions={{
@@ -58,6 +61,7 @@ function Navegacion() {
         <Tabs.Screen name="clientes" options={{ title: 'Clientes', tabBarIcon: icono('people', 'people-outline') }} />
         <Tabs.Screen name="mas" options={{ title: 'Más', tabBarIcon: icono('menu', 'menu-outline') }} />
       </Tabs>
-    </>
+      <View style={{ height: bottom, backgroundColor: colors.rosaClaro }} />
+    </View>
   );
 }
