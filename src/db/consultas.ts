@@ -53,3 +53,12 @@ export async function leerConfigNumero(db: SQLiteDatabase, clave: string, porDef
 export async function guardarConfig(db: SQLiteDatabase, clave: string, valor: number) {
   await db.runAsync('INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)', clave, String(valor));
 }
+
+export async function leerConfigTexto(db: SQLiteDatabase, clave: string): Promise<string | null> {
+  const fila = await db.getFirstAsync<{ valor: string }>('SELECT valor FROM config WHERE clave = ?', clave);
+  return fila?.valor || null;
+}
+
+export async function guardarConfigTexto(db: SQLiteDatabase, clave: string, valor: string) {
+  await db.runAsync('INSERT OR REPLACE INTO config (clave, valor) VALUES (?, ?)', clave, valor);
+}

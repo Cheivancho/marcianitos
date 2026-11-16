@@ -1,11 +1,22 @@
 import { File, Paths } from 'expo-file-system';
+import { useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Boton } from '@/components/Boton';
 import { restaurarTodo, volcarTodo } from '@/db/negocio';
-import { hoy } from '@/lib/fechas';
+import { fechaAmigable, hoy } from '@/lib/fechas';
+import {
+  armarCopia,
+  copiaEnCarpeta,
+  desactivarAuto,
+  diasSinCopia,
+  elegirCarpeta,
+  estadoAuto,
+  EstadoAuto,
+  marcarCopiaHecha,
+} from '@/lib/respaldo';
 import { colors, radius, space } from '@/theme';
 
 type Fila = Record<string, string | number | null>;
@@ -34,12 +45,56 @@ async function compartir(nombre: string, contenido: string, mime: string) {
 export default function Respaldo() {
   const db = useSQLiteContext();
   const [ocupada, setOcupada] = useState(false);
+  const [auto, setAuto] = useState<EstadoAuto>({ carpeta: null, ultimo: null });
+  const [dias, setDias] = useState<number | null>(null);
+
+  const cargar = useCallback(async () => {
+    setAuto(await estadoAuto(db));
+    setDias(await diasSinCopia(db));
+  }, [db]);
+  useFocusEffect(
+    useCallback(() => {
+      cargar();
+    }, [cargar]),
+  );
+
+  async function activarAuto() {
+    if (!(await elegirCarpeta(db))) return;
+    setOcupada(true);
+    try {
+      await copiaEnCarpeta(db); // primera copia ahora mismo, para comprobar que anda
+      Alert.alert('¡Listo!', 'La copia automática quedó activada. Se guarda sola cada vez que abrís la app (si pasaron 3 días o más).');
+    } catch {
+      Alert.alert(
+        'No se pudo guardar en esa carpeta',
+        'Probá elegir otra carpeta (por ejemplo una de Google Drive o de "Documentos").',
+      );
+      await desactivarAuto(db);
+    } finally {
+      setOcupada(false);
+      await cargar();
+    }
+  }
+
+  async function copiarAhora() {
+    setOcupada(true);
+    try {
+      await copiaEnCarpeta(db);
+      Alert.alert('Listo', 'Se guardó una copia en la carpeta.');
+    } catch {
+      Alert.alert('No se pudo guardar', 'Elegí la carpeta de nuevo con "Cambiar carpeta".');
+    } finally {
+      setOcupada(false);
+      await cargar();
+    }
+  }
 
   async function copia() {
     setOcupada(true);
     try {
-      const datos = await volcarTodo(db);
-      await compartir(`marcianitos-respaldo-${hoy()}.json`, JSON.stringify({ app: 'marcianitos', version: 1, fecha: hoy(), datos }), 'application/json');
+      await compartir(`marcianitos-respaldo-${hoy()}.json`, await armarCopia(db), 'application/json');
+      await marcarCopiaHecha(db);
+      await cargar();
     } catch {
       Alert.alert('No se pudo guardar la copia', 'Probá de nuevo.');
     } finally {
@@ -110,6 +165,58 @@ export default function Respaldo() {
 
   return (
     <ScrollView contentContainerStyle={styles.contenido}>
+      <View style={[styles.estado, dias === null || dias >= 7 ? styles.estadoMal : styles.estadoBien]}>
+        <Text style={styles.estadoTexto}>
+          {dias === null
+            ? '⚠️ Todavía no hiciste ninguna copia'
+            : dias === 0
+              ? '✅ Tu última copia es de hoy'
+              : dias >= 7
+                ? `⚠️ Tu última copia es de hace ${dias} días`
+                : `✅ Tu última copia es de hace ${dias} ${dias === 1 ? 'día' : 'días'}`}
+        </Text>
+      </View>
+
+      <View style={styles.tarjeta}>
+        <Text style={styles.titulo}>Copia automática (Drive)</Text>
+        <Text style={styles.texto}>
+          Elegí una carpeta, por ejemplo de Google Drive, y la app guarda sola una copia cada vez que la abrís (si pasaron 3 días o más). Se quedan las últimas 5.
+        </Text>
+        {!auto.carpeta ? (
+          <Text style={styles.ayuda}>
+            Si Android dice "No se puede usar esta carpeta", creá una nueva con el ícono de carpeta con un + (arriba a la derecha) y tocá "Usar esta carpeta".
+          </Text>
+        ) : null}
+        {auto.carpeta ? (
+          <>
+            <Text style={styles.activa}>
+              ✅ Activada en: {auto.carpeta}
+              {auto.ultimo ? `
+Última copia: ${fechaAmigable(auto.ultimo)}` : ''}
+            </Text>
+            <Boton titulo="Guardar una copia ahora acá" onPress={copiarAhora} deshabilitado={ocupada} />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Boton titulo="Cambiar carpeta" variante="suave" chico onPress={activarAuto} deshabilitado={ocupada} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Boton
+                  titulo="Desactivar"
+                  variante="secundario"
+                  chico
+                  onPress={async () => {
+                    await desactivarAuto(db);
+                    await cargar();
+                  }}
+                />
+              </View>
+            </View>
+          </>
+        ) : (
+          <Boton titulo="Elegir carpeta de Drive" onPress={activarAuto} deshabilitado={ocupada} />
+        )}
+      </View>
+
       <View style={styles.tarjeta}>
         <Text style={styles.titulo}>Copia de seguridad</Text>
         <Text style={styles.texto}>
@@ -140,5 +247,11 @@ const styles = StyleSheet.create({
   tarjeta: { backgroundColor: colors.blanco, borderRadius: radius.medio, padding: space.m, gap: space.s },
   titulo: { fontSize: 20, fontWeight: '800', color: colors.rosaOscuro },
   texto: { fontSize: 16, color: colors.texto },
+  estado: { borderRadius: radius.medio, padding: space.m },
+  estadoBien: { backgroundColor: '#E6F5EC' },
+  estadoMal: { backgroundColor: '#FFE9E9' },
+  estadoTexto: { fontSize: 17, fontWeight: '800', color: colors.texto, textAlign: 'center' },
+  ayuda: { fontSize: 14, color: colors.textoSuave },
+  activa: { fontSize: 15, fontWeight: '700', color: colors.verde },
   nota: { fontSize: 14, color: colors.textoSuave, textAlign: 'center', paddingHorizontal: space.m },
 });

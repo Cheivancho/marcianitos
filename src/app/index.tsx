@@ -8,9 +8,13 @@ import { estadoBolsitas, EstadoBolsitas, resumen } from '@/db/negocio';
 import { bajarEInstalar, buscarActualizacion, Novedad } from '@/lib/actualizar';
 import { Periodo, rangoDe } from '@/lib/fechas';
 import { pesos } from '@/lib/formato';
+import { copiaAutomaticaSiToca, necesitaAviso, programarRecordatorio } from '@/lib/respaldo';
 import { colors, radius, space } from '@/theme';
 
 type Datos = Awaited<ReturnType<typeof resumen>>;
+
+// La copia automática y el recordatorio se revisan una vez cada vez que se abre la app.
+let revisadoEstaSesion = false;
 
 export default function Inicio() {
   const db = useSQLiteContext();
@@ -20,6 +24,7 @@ export default function Inicio() {
   const [bolsitas, setBolsitas] = useState<EstadoBolsitas | null>(null);
   const [novedad, setNovedad] = useState<Novedad | null>(null);
   const [bajando, setBajando] = useState(false);
+  const [sinCopia, setSinCopia] = useState<{ dias: number | null } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -27,6 +32,14 @@ export default function Inicio() {
       resumen(db, desde, hasta).then(setDatos);
       estadoBolsitas(db).then(setBolsitas);
       buscarActualizacion().then(setNovedad);
+      (async () => {
+        if (!revisadoEstaSesion) {
+          revisadoEstaSesion = true;
+          await copiaAutomaticaSiToca(db);
+          await programarRecordatorio(db);
+        }
+        setSinCopia(await necesitaAviso(db));
+      })();
     }, [db, periodo]),
   );
 
@@ -65,6 +78,14 @@ export default function Inicio() {
           >
             {bajando ? <ActivityIndicator color={colors.blanco} /> : null}
             <Text style={styles.novedadTexto}>{bajando ? 'Bajando la versión nueva...' : '✨ Hay una versión nueva. Tocá para actualizar'}</Text>
+          </Pressable>
+        ) : null}
+
+        {sinCopia ? (
+          <Pressable onPress={() => router.push('/mas/respaldo' as never)} style={styles.copia}>
+            <Text style={styles.copiaTexto}>
+              💾 {sinCopia.dias === null ? 'Todavía no hiciste una copia de seguridad.' : `Hace ${sinCopia.dias} días que no hacés una copia de seguridad.`} Tocá acá.
+            </Text>
           </Pressable>
         ) : null}
 
@@ -130,6 +151,8 @@ export default function Inicio() {
 const styles = StyleSheet.create({
   novedad: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: space.s, backgroundColor: colors.rosa, borderRadius: radius.medio, padding: space.m, minHeight: 56 },
   novedadTexto: { fontSize: 17, fontWeight: '800', color: colors.blanco, textAlign: 'center' },
+  copia: { backgroundColor: colors.beige, borderRadius: radius.medio, padding: space.m, borderWidth: 2, borderColor: colors.rosa },
+  copiaTexto: { fontSize: 16, fontWeight: '800', color: colors.texto, textAlign: 'center' },
   aviso: { backgroundColor: '#FFE9E9', borderWidth: 2, borderColor: colors.rojo, borderRadius: radius.medio, padding: space.m },
   avisoTexto: { fontSize: 17, fontWeight: '800', color: colors.rojo, textAlign: 'center' },
   numero: { borderRadius: radius.medio, padding: space.m, alignItems: 'center' },
