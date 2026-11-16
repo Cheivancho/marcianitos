@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Marcianitos",
+    "slug": "marcianitos",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "marcianitos",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.marcianitos.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F8C8D4",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFF4EC",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ],
+      "expo-sharing",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

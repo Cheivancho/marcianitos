@@ -1,0 +1,17 @@
+// Init script de Gradle para compilar en Windows.
+// Le pide a CMake que acorte los nombres de archivos objeto cuando la ruta supera el limite,
+// porque ninja (CMake 3.22 del SDK) no soporta rutas de mas de 260 caracteres.
+// Se usa con: gradlew -I scripts/gradle-long-paths.init.gradle assembleRelease
+allprojects { p ->
+  def aplicar = {
+    p.android.defaultConfig {
+      externalNativeBuild {
+        cmake {
+          arguments "-DCMAKE_OBJECT_PATH_MAX=128"
+        }
+      }
+    }
+  }
+  p.plugins.withId('com.android.application', aplicar)
+  p.plugins.withId('com.android.library', aplicar)
+}
