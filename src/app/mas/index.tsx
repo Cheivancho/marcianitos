@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Href, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Pantalla } from '@/components/Pantalla';
+import { BUILD_ACTUAL } from '@/lib/actualizar';
 import { colors, radius, space } from '@/theme';
 
 type Opcion = {
@@ -45,6 +46,7 @@ export default function Mas() {
           );
         })}
       </View>
+      <Text style={styles.version}>Marcianitos · versión {BUILD_ACTUAL ? `build ${BUILD_ACTUAL}` : 'de desarrollo'}</Text>
     </Pantalla>
   );
 }
@@ -61,4 +63,5 @@ const styles = StyleSheet.create({
   },
   titulo: { fontSize: 18, fontWeight: '800', color: colors.texto },
   detalle: { fontSize: 14, color: colors.textoSuave, marginTop: 2 },
+  version: { fontSize: 13, color: colors.textoSuave, textAlign: 'center', marginTop: space.m },
 });
