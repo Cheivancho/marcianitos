@@ -15,6 +15,7 @@ type Opcion = {
 const opciones: Opcion[] = [
   { titulo: 'Sabores', detalle: 'Agregar, cambiar o esconder sabores', icono: 'ice-cream-outline', ruta: '/mas/sabores' },
   { titulo: 'Precios', detalle: 'Precio por unidad y descuentos', icono: 'pricetag-outline', ruta: '/mas/precios' },
+  { titulo: 'Historial', detalle: 'Qué pasó cada día: ventas, cobros y gastos', icono: 'calendar-outline', ruta: '/mas/historial' as Href },
   { titulo: 'Compras', detalle: 'Lo que compraste para hacer jugitos', icono: 'cart-outline', ruta: '/mas/compras' as Href },
   { titulo: 'Bolsitas', detalle: 'Tandas y aviso de stock', icono: 'cube-outline', ruta: '/mas/bolsitas' as Href },
   { titulo: 'Respaldo', detalle: 'Guardar una copia de tus datos', icono: 'cloud-upload-outline', ruta: '/mas/respaldo' as Href },

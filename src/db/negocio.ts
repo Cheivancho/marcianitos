@@ -319,3 +319,50 @@ export async function restaurarTodo(db: SQLiteDatabase, datos: Record<string, Re
     await db.execAsync('PRAGMA foreign_keys = ON');
   }
 }
+
+// ---------- Historial por día ----------
+
+export function diasConMovimiento(db: SQLiteDatabase, limite: number) {
+  return db.getAllAsync<{ fecha: string; ganado: number; gastado: number }>(
+    `SELECT fecha, SUM(ganado) AS ganado, SUM(gastado) AS gastado FROM (
+       SELECT fecha, SUM(precio) AS ganado, 0 AS gastado FROM ventas GROUP BY fecha
+       UNION ALL SELECT fecha, SUM(monto), 0 FROM pagos GROUP BY fecha
+       UNION ALL SELECT fecha, 0, SUM(precio_total) FROM compras GROUP BY fecha
+     ) GROUP BY fecha ORDER BY fecha DESC LIMIT ?`,
+    limite,
+  );
+}
+
+export async function detalleDia(db: SQLiteDatabase, fecha: string) {
+  const [ventas, cobros, compras, entregas] = await Promise.all([
+    db.getAllAsync<{ nombre: string; tipo: TipoJugo; n: number; total: number }>(
+      `SELECT s.nombre, s.tipo, COUNT(*) AS n, SUM(v.precio) AS total FROM ventas v JOIN sabores s ON s.id = v.sabor_id
+       WHERE v.fecha = ? GROUP BY s.id ORDER BY n DESC`,
+      fecha,
+    ),
+    db.getAllAsync<{ cliente: string; monto: number; metodo: Metodo }>(
+      `SELECT c.nombre AS cliente, p.monto, p.metodo FROM pagos p JOIN pedidos d ON d.id = p.pedido_id
+       JOIN clientes c ON c.id = d.cliente_id WHERE p.fecha = ? ORDER BY p.id`,
+      fecha,
+    ),
+    db.getAllAsync<{ insumo: string; cantidad: number; precio_total: number }>(
+      `SELECT i.nombre AS insumo, c.cantidad, c.precio_total FROM compras c JOIN insumos i ON i.id = c.insumo_id
+       WHERE c.fecha = ? ORDER BY c.id`,
+      fecha,
+    ),
+    db.getAllAsync<{ cliente: string; unidades: number; estado: Estado }>(
+      `SELECT c.nombre AS cliente, p.estado,
+         COALESCE((SELECT SUM(cantidad) FROM pedido_items WHERE pedido_id = p.id), 0) AS unidades
+       FROM pedidos p JOIN clientes c ON c.id = p.cliente_id WHERE p.fecha_entrega = ? ORDER BY p.id`,
+      fecha,
+    ),
+  ]);
+  const porMetodo = await db.getAllAsync<{ metodo: Metodo; total: number }>(
+    `SELECT metodo, SUM(total) AS total FROM (
+       SELECT metodo, precio AS total FROM ventas WHERE fecha = ?1
+       UNION ALL SELECT metodo, monto FROM pagos WHERE fecha = ?1
+     ) GROUP BY metodo`,
+    fecha,
+  );
+  return { ventas, cobros, compras, entregas, porMetodo };
+}

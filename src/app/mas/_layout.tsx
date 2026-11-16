@@ -15,6 +15,7 @@ export default function MasLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="sabores" options={{ title: 'Sabores' }} />
       <Stack.Screen name="precios" options={{ title: 'Precios' }} />
+      <Stack.Screen name="historial" options={{ title: 'Historial por día' }} />
       <Stack.Screen name="compras" options={{ title: 'Compras de insumos' }} />
       <Stack.Screen name="bolsitas" options={{ title: 'Bolsitas' }} />
       <Stack.Screen name="respaldo" options={{ title: 'Respaldo' }} />
