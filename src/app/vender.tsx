@@ -26,7 +26,7 @@ export default function Vender() {
       ventasDeHoyPorSabor(db),
       cobradoHoyPorMetodo(db),
     ]);
-    setSabores(s.filter((x) => x.activo));
+    setSabores(s.filter((x) => x.activo).sort((a, b) => (a.tipo === b.tipo ? 0 : a.tipo === 'crema' ? -1 : 1)));
     setPrecios(p);
     setCuentas(Object.fromEntries(v.map((f) => [f.sabor_id, f.n])));
     setCobrado(Object.fromEntries(c.map((f) => [f.metodo, f.total])));

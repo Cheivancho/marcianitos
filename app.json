@@ -10,7 +10,7 @@
     "android": {
       "package": "com.marcianitos.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F8C8D4",
+        "backgroundColor": "#E8588A",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
