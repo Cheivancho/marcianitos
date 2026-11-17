@@ -19,6 +19,8 @@ export default function MasLayout() {
       <Stack.Screen name="compras" options={{ title: 'Compras de insumos' }} />
       <Stack.Screen name="bolsitas" options={{ title: 'Bolsitas' }} />
       <Stack.Screen name="respaldo" options={{ title: 'Respaldo' }} />
+      <Stack.Screen name="plantillas" options={{ title: 'Plantillas' }} />
+      <Stack.Screen name="plantilla" options={{ title: 'Editar plantilla' }} />
     </Stack>
   );
 }
