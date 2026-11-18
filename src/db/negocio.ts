@@ -235,7 +235,20 @@ export function listarTandas(db: SQLiteDatabase, limite = 20) {
   );
 }
 
-export type EstadoBolsitas = { quedan: number; alerta: number; hechos: number; comprados: number };
+/** Jugitos que quedan por sabor: hechos (tandas) - vendidos por unidad - pedidos ya preparados o entregados. */
+export function stockJugitos(db: SQLiteDatabase) {
+  return db.getAllAsync<{ sabor_id: number; hechos: number; vendidos: number; quedan: number }>(
+    `SELECT s.id AS sabor_id,
+       COALESCE((SELECT SUM(cantidad) FROM tanda_items WHERE sabor_id = s.id), 0) AS hechos,
+       COALESCE((SELECT COUNT(*) FROM ventas WHERE sabor_id = s.id), 0)
+       + COALESCE((SELECT SUM(i.cantidad) FROM pedido_items i JOIN pedidos p ON p.id = i.pedido_id
+                   WHERE i.sabor_id = s.id AND p.estado IN ('preparado', 'entregado')), 0) AS vendidos,
+       0 AS quedan
+     FROM sabores s`,
+  ).then((filas) => filas.map((f) => ({ ...f, quedan: f.hechos - f.vendidos })));
+}
+
+export type EstadoBolsitas ={ quedan: number; alerta: number; hechos: number; comprados: number };
 
 export async function estadoBolsitas(db: SQLiteDatabase): Promise<EstadoBolsitas> {
   const alerta = await leerConfigNumero(db, 'bolsitas_alerta', 30);

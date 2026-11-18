@@ -7,7 +7,7 @@ import { Campo } from '@/components/Campo';
 import { Contador } from '@/components/Contador';
 import { Ventana } from '@/components/Ventana';
 import { guardarConfig, listarSabores } from '@/db/consultas';
-import { borrarTanda, corregirBolsitas, crearTanda, estadoBolsitas, EstadoBolsitas, listarTandas } from '@/db/negocio';
+import { borrarTanda, corregirBolsitas, crearTanda, estadoBolsitas, EstadoBolsitas, listarTandas, stockJugitos } from '@/db/negocio';
 import type { Sabor } from '@/db/tipos';
 import { avisarSiPocas } from '@/lib/avisos';
 import { fechaCorta } from '@/lib/fechas';
@@ -20,6 +20,7 @@ export default function Bolsitas() {
   const [estado, setEstado] = useState<EstadoBolsitas | null>(null);
   const [tandas, setTandas] = useState<Tanda[]>([]);
   const [sabores, setSabores] = useState<Sabor[]>([]);
+  const [stock, setStock] = useState<Record<number, { hechos: number; quedan: number }>>({});
 
   const [nueva, setNueva] = useState(false);
   const [cantidades, setCantidades] = useState<Record<number, number>>({});
@@ -28,7 +29,8 @@ export default function Bolsitas() {
   const [alerta, setAlerta] = useState('');
 
   const cargar = useCallback(async () => {
-    const [e, t, s] = await Promise.all([estadoBolsitas(db), listarTandas(db), listarSabores(db)]);
+    const [e, t, s, st] = await Promise.all([estadoBolsitas(db), listarTandas(db), listarSabores(db), stockJugitos(db)]);
+    setStock(Object.fromEntries(st.map((f) => [f.sabor_id, { hechos: f.hechos, quedan: f.quedan }])));
     setEstado(e);
     setTandas(t);
     setSabores(s.filter((x) => x.activo));
@@ -100,6 +102,25 @@ export default function Bolsitas() {
             setAjustes(true);
           }}
         />
+
+        <View style={styles.tarjeta}>
+          <Text style={styles.titulo}>Jugitos que te quedan</Text>
+          {sabores.map((s) => {
+            const q = stock[s.id]?.quedan ?? 0;
+            return (
+              <View key={s.id} style={styles.fila}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nombre}>{s.nombre}</Text>
+                  <Text style={styles.detalle}>
+                    {s.tipo} · hiciste {stock[s.id]?.hechos ?? 0}
+                  </Text>
+                </View>
+                <Text style={[styles.cantidad, q <= 0 && { color: colors.rojo }]}>{Math.max(0, q)}</Text>
+              </View>
+            );
+          })}
+          <Text style={styles.detalle}>Son los que hiciste menos los que vendiste (por unidad y en pedidos preparados o entregados).</Text>
+        </View>
 
         <View style={styles.tarjeta}>
           <Text style={styles.titulo}>Últimas tandas</Text>
@@ -177,6 +198,7 @@ const styles = StyleSheet.create({
   fila: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.beigeClaro },
   nombre: { fontSize: 17, fontWeight: '700', color: colors.texto },
   detalle: { fontSize: 14, color: colors.textoSuave },
+  cantidad: { fontSize: 26, fontWeight: '800', color: colors.texto },
   borrar: { fontSize: 14, fontWeight: '800', color: colors.rojo },
   filaSabor: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
   sabor: { flex: 1, fontSize: 18, fontWeight: '700', color: colors.texto },

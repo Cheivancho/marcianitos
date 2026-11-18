@@ -6,7 +6,7 @@ import { Boton } from '@/components/Boton';
 import { Chips } from '@/components/Chips';
 import { Pantalla } from '@/components/Pantalla';
 import { listarPrecios, listarSabores } from '@/db/consultas';
-import { cobradoHoyPorMetodo, deshacerUltimaVenta, registrarVenta, ventasDeHoyPorSabor } from '@/db/negocio';
+import { cobradoHoyPorMetodo, deshacerUltimaVenta, registrarVenta, stockJugitos, ventasDeHoyPorSabor } from '@/db/negocio';
 import type { Metodo, Precios, Sabor } from '@/db/tipos';
 import { pesos } from '@/lib/formato';
 import { colors, radius, space } from '@/theme';
@@ -18,14 +18,19 @@ export default function Vender() {
   const [cuentas, setCuentas] = useState<Record<number, number>>({});
   const [cobrado, setCobrado] = useState<Record<string, number>>({});
   const [metodo, setMetodo] = useState<Metodo>('efectivo');
+  const [quedan, setQuedan] = useState<Record<number, number>>({});
+  const [hayTandas, setHayTandas] = useState(false);
 
   const cargar = useCallback(async () => {
-    const [s, p, v, c] = await Promise.all([
+    const [s, p, v, c, st] = await Promise.all([
       listarSabores(db),
       listarPrecios(db),
       ventasDeHoyPorSabor(db),
       cobradoHoyPorMetodo(db),
+      stockJugitos(db),
     ]);
+    setQuedan(Object.fromEntries(st.map((f) => [f.sabor_id, f.quedan])));
+    setHayTandas(st.some((f) => f.hechos > 0));
     setSabores(s.filter((x) => x.activo).sort((a, b) => (a.tipo === b.tipo ? 0 : a.tipo === 'crema' ? -1 : 1)));
     setPrecios(p);
     setCuentas(Object.fromEntries(v.map((f) => [f.sabor_id, f.n])));
@@ -43,6 +48,7 @@ export default function Vender() {
   async function vender(s: Sabor) {
     // Se actualiza la pantalla al instante y se guarda atrás.
     setCuentas((c) => ({ ...c, [s.id]: (c[s.id] ?? 0) + 1 }));
+    setQuedan((q) => ({ ...q, [s.id]: (q[s.id] ?? 0) - 1 }));
     setCobrado((c) => ({ ...c, [metodo]: (c[metodo] ?? 0) + precioDe(s) }));
     await registrarVenta(db, s.id, precioDe(s), metodo);
   }
@@ -82,6 +88,9 @@ export default function Vender() {
               <Text style={styles.nombre} numberOfLines={2}>
                 {s.nombre}
               </Text>
+              {hayTandas ? (
+                <Text style={[styles.quedan, (quedan[s.id] ?? 0) <= 0 && { color: colors.rojo }]}>Quedan {Math.max(0, quedan[s.id] ?? 0)}</Text>
+              ) : null}
               <View style={styles.pie}>
                 <Text style={styles.precio}>{pesos(precioDe(s))}</Text>
                 <View style={styles.contador}>
@@ -125,6 +134,7 @@ const styles = StyleSheet.create({
   agua: { backgroundColor: colors.beigeClaro, borderColor: colors.beige },
   tipo: { fontSize: 12, fontWeight: '800', letterSpacing: 1, color: colors.textoSuave },
   nombre: { fontSize: 19, fontWeight: '800', color: colors.texto, marginTop: 2 },
+  quedan: { fontSize: 14, fontWeight: '700', color: colors.textoSuave },
   pie: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.s },
   precio: { fontSize: 16, fontWeight: '700', color: colors.rosaOscuro },
   contador: {
