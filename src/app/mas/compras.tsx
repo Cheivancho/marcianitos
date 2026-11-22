@@ -3,13 +3,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Boton } from '@/components/Boton';
 import { Campo } from '@/components/Campo';
 import { Chips } from '@/components/Chips';
 import { SelectorFecha } from '@/components/SelectorFecha';
 import { Ventana } from '@/components/Ventana';
-import { borrarCompra, comprasPorInsumo, crearCompra, crearInsumo, listarCompras, listarInsumos } from '@/db/negocio';
+import { borrarCompra, borrarLote, comprasPorInsumo, crearCompraVarios, crearInsumo, listarCompras, listarInsumos } from '@/db/negocio';
 import type { Compra, Insumo } from '@/db/tipos';
 import { fechaCorta, hoy, Periodo, rangoDe } from '@/lib/fechas';
 import { pesos } from '@/lib/formato';
@@ -30,6 +30,32 @@ function numero(t: string): number {
   return Number(t.replace(',', '.'));
 }
 
+type Elegido = { cantidad: string; precio: string };
+
+/** Agrupa las filas de una misma compra (mismo lote) para mostrarlas como una sola. */
+function agrupar(compras: Compra[]): Compra[][] {
+  const grupos: Compra[][] = [];
+  const porLote = new Map<number, Compra[]>();
+  for (const c of compras) {
+    if (c.lote === null) {
+      grupos.push([c]);
+    } else {
+      let g = porLote.get(c.lote);
+      if (!g) {
+        g = [];
+        porLote.set(c.lote, g);
+        grupos.push(g);
+      }
+      g.push(c);
+    }
+  }
+  return grupos;
+}
+
+function nombreGrupo(g: Compra[]): string {
+  return g.map((c) => c.insumo).join(', ');
+}
+
 export default function Compras() {
   const db = useSQLiteContext();
   const [periodo, setPeriodo] = useState<Periodo>('mes');
@@ -39,14 +65,13 @@ export default function Compras() {
 
   // Formulario
   const [abierta, setAbierta] = useState(false);
-  const [insumoId, setInsumoId] = useState<number | null>(null);
+  const [elegidos, setElegidos] = useState<Record<number, Elegido>>({});
   const [otroInsumo, setOtroInsumo] = useState<string | null>(null);
-  const [cantidad, setCantidad] = useState('');
   const [precio, setPrecio] = useState('');
   const [fecha, setFecha] = useState(hoy());
   const [foto, setFoto] = useState<string | null>(null);
 
-  const [detalle, setDetalle] = useState<Compra | null>(null);
+  const [detalle, setDetalle] = useState<Compra[] | null>(null);
 
   const cargar = useCallback(async () => {
     const { desde, hasta } = rangoDe(periodo);
@@ -63,9 +88,8 @@ export default function Compras() {
   );
 
   function abrirFormulario() {
-    setInsumoId(null);
+    setElegidos({});
     setOtroInsumo(null);
-    setCantidad('');
     setPrecio('');
     setFecha(hoy());
     setFoto(null);
@@ -96,29 +120,54 @@ export default function Compras() {
     const existente = insumos.find((i) => i.nombre.toLowerCase() === nombre.toLowerCase());
     const id = existente ? existente.id : await crearInsumo(db, nombre);
     setInsumos(await listarInsumos(db));
-    setInsumoId(id);
+    setElegidos((e) => (e[id] ? e : { ...e, [id]: { cantidad: '', precio: '' } }));
     setOtroInsumo(null);
   }
 
+  function alternar(id: number) {
+    setElegidos((e) => {
+      const { [id]: quitado, ...resto } = e;
+      return quitado ? resto : { ...e, [id]: { cantidad: '', precio: '' } };
+    });
+  }
+
+  function cambiar(id: number, campo: keyof Elegido, valor: string) {
+    setElegidos((e) => ({ ...e, [id]: { ...e[id], [campo]: valor } }));
+  }
+
   async function guardar() {
-    const cant = numero(cantidad);
-    const total = Number(precio);
-    if (insumoId === null) return Alert.alert('Falta el insumo', 'Elegí qué compraste.');
-    if (!(cant > 0)) return Alert.alert('Falta la cantidad', 'Escribí cuántos compraste.');
-    if (!(total > 0)) return Alert.alert('Falta el precio', 'Escribí cuánto pagaste en total.');
-    await crearCompra(db, { insumoId, cantidad: cant, precioTotal: total, fecha, foto });
+    const ids = insumos.filter((i) => elegidos[i.id]).map((i) => i.id);
+    if (ids.length === 0) return Alert.alert('Falta el insumo', 'Elegí qué compraste.');
+    const items: { insumoId: number; cantidad: number; precio: number | null }[] = [];
+    for (const id of ids) {
+      const e = elegidos[id];
+      const nombre = insumos.find((i) => i.id === id)?.nombre ?? '';
+      const cant = numero(e.cantidad);
+      if (!(cant > 0)) return Alert.alert('Falta la cantidad', `Escribí cuántos compraste de ${nombre}.`);
+      items.push({ insumoId: id, cantidad: cant, precio: e.precio ? Number(e.precio) : null });
+    }
+    const conPrecio = items.reduce((a, it) => a + (it.precio ?? 0), 0);
+    const libres = items.some((it) => it.precio === null);
+    const totalPagado = libres ? Number(precio) : conPrecio;
+    if (!(totalPagado > 0)) return Alert.alert('Falta el precio', 'Escribí cuánto pagaste en total.');
+    if (libres && totalPagado < conPrecio) {
+      return Alert.alert('El total no alcanza', `Los precios que pusiste a cada cosa suman ${pesos(conPrecio)}, más que el total.`);
+    }
+    await crearCompraVarios(db, { items, total: totalPagado, fecha, foto });
     setAbierta(false);
     await cargar();
   }
 
-  function borrar(c: Compra) {
-    Alert.alert('¿Borrar esta compra?', `${c.insumo} · ${pesos(c.precio_total)}`, [
+  function borrar(g: Compra[]) {
+    const monto = g.reduce((a, c) => a + c.precio_total, 0);
+    Alert.alert('¿Borrar esta compra?', `${nombreGrupo(g)} · ${pesos(monto)}`, [
       { text: 'No', style: 'cancel' },
       {
         text: 'Borrar',
         style: 'destructive',
         onPress: async () => {
-          await borrarCompra(db, c.id);
+          if (g[0].lote !== null) await borrarLote(db, g[0].lote);
+          else await borrarCompra(db, g[0].id);
           setDetalle(null);
           await cargar();
         },
@@ -127,7 +176,9 @@ export default function Compras() {
   }
 
   const total = compras.reduce((a, c) => a + c.precio_total, 0);
-  const elegido = insumos.find((i) => i.id === insumoId);
+  const grupos = agrupar(compras);
+  const insumosElegidos = insumos.filter((i) => elegidos[i.id]);
+  const hayLibres = insumosElegidos.some((i) => !elegidos[i.id].precio);
 
   return (
     <>
@@ -161,7 +212,7 @@ export default function Compras() {
                     
                   </Text>
                 </View>
-                <Text style={styles.monto}>{pesos(r.total)}</Text>
+                {r.mixto ? <Text style={styles.detalle}>con otras cosas</Text> : <Text style={styles.monto}>{pesos(r.total)}</Text>}
               </View>
             ))}
           </View>
@@ -170,25 +221,38 @@ export default function Compras() {
         <View style={styles.tarjeta}>
           <Text style={styles.titulo}>Compras</Text>
           {compras.length === 0 ? <Text style={styles.detalle}>No hay compras en este período.</Text> : null}
-          {compras.map((c) => (
-            <View key={c.id} style={styles.fila}>
+          {grupos.map((g) => (
+            <View key={g[0].id} style={styles.fila}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.nombre}>{c.insumo}</Text>
+                <Text style={styles.nombre}>{nombreGrupo(g)}</Text>
                 <Text style={styles.detalle}>
-                  {fechaCorta(c.fecha)} · cantidad {Math.round(c.cantidad * 100) / 100}
-                  {c.foto ? ' · 📷' : ''}
+                  {fechaCorta(g[0].fecha)}
+                  {g.length === 1 ? ` · cantidad ${Math.round(g[0].cantidad * 100) / 100}` : ''}
+                  {g[0].foto ? ' · 📷' : ''}
                 </Text>
               </View>
-              <Text style={styles.monto}>{pesos(c.precio_total)}</Text>
-              <Boton titulo="Ver" chico variante="suave" onPress={() => setDetalle(c)} />
+              <Text style={styles.monto}>{pesos(g.reduce((a, c) => a + c.precio_total, 0))}</Text>
+              <Boton titulo="Ver" chico variante="suave" onPress={() => setDetalle(g)} />
             </View>
           ))}
         </View>
       </ScrollView>
 
       <Ventana visible={abierta} titulo="Nueva compra" onCerrar={() => setAbierta(false)}>
-        <Text style={styles.etiqueta}>¿Qué compraste?</Text>
-        <Chips valor={insumoId} onCambiar={setInsumoId} opciones={insumos.map((i) => ({ valor: i.id, titulo: i.nombre }))} />
+        <Text style={styles.etiqueta}>¿Qué compraste? (podés elegir varias cosas)</Text>
+        <View style={styles.chips}>
+          {insumos.map((i) => {
+            const activo = !!elegidos[i.id];
+            return (
+              <Pressable key={i.id} onPress={() => alternar(i.id)} style={[styles.chip, activo && styles.chipActivo]}>
+                <Text style={[styles.chipTexto, activo && { color: colors.blanco }]}>
+                  {activo ? '✓ ' : ''}
+                  {i.nombre}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
         {otroInsumo === null ? (
           <Boton titulo="+ Otro insumo" variante="suave" chico onPress={() => setOtroInsumo('')} />
         ) : (
@@ -197,14 +261,40 @@ export default function Compras() {
             <Boton titulo="Agregar insumo" chico onPress={agregarInsumo} />
           </View>
         )}
-        <Campo
-          etiqueta={elegido?.es_bolsitas ? 'Cantidad de bolsitas (contá las que trajo el paquete)' : 'Cantidad (kilos, unidades, paquetes...)'}
-          value={cantidad}
-          onChangeText={(t) => setCantidad(t.replace(/[^0-9.,]/g, ''))}
-          keyboardType="decimal-pad"
-          maxLength={7}
-        />
-        <Campo etiqueta="Precio total pagado" value={precio} onChangeText={(t) => setPrecio(t.replace(/[^0-9]/g, ''))} keyboardType="number-pad" maxLength={8} placeholder="$" />
+        {insumosElegidos.map((i) => (
+          <View key={i.id} style={styles.item}>
+            <Text style={styles.nombre}>{i.nombre}</Text>
+            <Campo
+              etiqueta={i.es_bolsitas ? 'Cantidad de bolsitas (contá las que trajo el paquete)' : 'Cantidad (kilos, unidades, paquetes...)'}
+              value={elegidos[i.id].cantidad}
+              onChangeText={(t) => cambiar(i.id, 'cantidad', t.replace(/[^0-9.,]/g, ''))}
+              keyboardType="decimal-pad"
+              maxLength={7}
+            />
+            {insumosElegidos.length > 1 ? (
+              <Campo
+                etiqueta="Precio de este (opcional)"
+                value={elegidos[i.id].precio}
+                onChangeText={(t) => cambiar(i.id, 'precio', t.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                maxLength={8}
+                placeholder="$"
+              />
+            ) : null}
+          </View>
+        ))}
+        {hayLibres || insumosElegidos.length === 0 ? (
+          <Campo
+            etiqueta={insumosElegidos.length > 1 ? 'Precio de todo (total pagado)' : 'Precio total pagado'}
+            value={precio}
+            onChangeText={(t) => setPrecio(t.replace(/[^0-9]/g, ''))}
+            keyboardType="number-pad"
+            maxLength={8}
+            placeholder="$"
+          />
+        ) : (
+          <Text style={styles.detalle}>El total es la suma de los precios de cada cosa.</Text>
+        )}
         <Text style={styles.etiqueta}>¿Cuándo?</Text>
         <SelectorFecha valor={fecha} onCambiar={setFecha} />
         <Text style={styles.etiqueta}>Foto del ticket (opcional)</Text>
@@ -227,13 +317,22 @@ export default function Compras() {
         </View>
       </Ventana>
 
-      <Ventana visible={detalle !== null} titulo={detalle?.insumo ?? ''} onCerrar={() => setDetalle(null)}>
+      <Ventana visible={detalle !== null} titulo={detalle ? nombreGrupo(detalle) : ''} onCerrar={() => setDetalle(null)}>
         {detalle ? (
           <>
             <Text style={styles.detalle}>
-              {fechaCorta(detalle.fecha)} · cantidad {Math.round(detalle.cantidad * 100) / 100} · {pesos(detalle.precio_total)}
+              {fechaCorta(detalle[0].fecha)} · {pesos(detalle.reduce((a, c) => a + c.precio_total, 0))}
             </Text>
-            {detalle.foto ? <Image source={{ uri: detalle.foto }} style={styles.fotoGrande} resizeMode="contain" /> : <Text style={styles.detalle}>Sin foto del ticket.</Text>}
+            {detalle.map((c) => (
+              <View key={c.id} style={styles.fila}>
+                <Text style={[styles.nombre, { flex: 1 }]}>{c.insumo}</Text>
+                <Text style={styles.detalle}>
+                  cantidad {Math.round(c.cantidad * 100) / 100}
+                  {detalle.length > 1 && !c.sin_precio ? ` · ${pesos(c.precio_total)}` : ''}
+                </Text>
+              </View>
+            ))}
+            {detalle[0].foto ? <Image source={{ uri: detalle[0].foto }} style={styles.fotoGrande} resizeMode="contain" /> : <Text style={styles.detalle}>Sin foto del ticket.</Text>}
             <Boton titulo="Borrar compra" variante="secundario" onPress={() => borrar(detalle)} />
             <Boton titulo="Cerrar" onPress={() => setDetalle(null)} />
           </>
@@ -256,6 +355,11 @@ const styles = StyleSheet.create({
   monto: { fontSize: 17, fontWeight: '800', color: colors.texto },
   etiqueta: { fontSize: 15, fontWeight: '700', color: colors.textoSuave },
   botones: { flexDirection: 'row', gap: space.s },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s },
+  chip: { minHeight: 44, paddingHorizontal: 16, borderRadius: radius.grande, backgroundColor: colors.rosaSuave, alignItems: 'center', justifyContent: 'center' },
+  chipActivo: { backgroundColor: colors.rosa },
+  chipTexto: { fontSize: 16, fontWeight: '800', color: colors.rosaOscuro },
+  item: { gap: space.s, padding: space.s, borderRadius: radius.chico, backgroundColor: colors.beigeClaro },
   foto: { width: '100%', height: 160, borderRadius: radius.chico },
   fotoGrande: { width: '100%', height: 380, borderRadius: radius.chico, backgroundColor: colors.beigeClaro },
 });

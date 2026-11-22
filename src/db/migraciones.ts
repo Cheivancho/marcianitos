@@ -149,4 +149,16 @@ export async function migrar(db: SQLiteDatabase) {
       await db.execAsync('PRAGMA user_version = 2');
     });
   }
+
+  if (version < 3) {
+    // Compras con varios insumos y un solo precio: `lote` agrupa las filas de una misma compra
+    // y `sin_precio` marca los insumos que no tienen precio propio (su plata va en el total del lote).
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        ALTER TABLE compras ADD COLUMN lote INTEGER;
+        ALTER TABLE compras ADD COLUMN sin_precio INTEGER NOT NULL DEFAULT 0;
+      `);
+      await db.execAsync('PRAGMA user_version = 3');
+    });
+  }
 }

@@ -82,7 +82,7 @@ export default function Historial() {
         {detalle && detalle.compras.length > 0 ? (
           <Bloque titulo="Compras de insumos">
             {detalle.compras.map((c, i) => (
-              <Linea key={i} izq={`${c.insumo} (${Math.round(c.cantidad * 100) / 100})`} der={pesos(c.precio_total)} />
+              <Linea key={i} izq={`${c.insumo} (${Math.round(c.cantidad * 100) / 100})`} der={c.sin_precio && c.precio_total === 0 ? 'en el total' : pesos(c.precio_total)} />
             ))}
           </Bloque>
         ) : null}

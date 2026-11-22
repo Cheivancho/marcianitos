@@ -50,4 +50,8 @@ export type Compra = {
   precio_total: number;
   fecha: string;
   foto: string | null;
+  /** Misma compra con varios insumos: comparten lote. Null en compras de un solo insumo. */
+  lote: number | null;
+  /** 1 = este insumo no tiene precio propio; su plata está en el total del lote. */
+  sin_precio: number;
 };

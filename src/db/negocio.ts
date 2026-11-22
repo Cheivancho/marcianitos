@@ -184,13 +184,53 @@ export async function crearCompra(
   );
 }
 
+/**
+ * Guarda una compra con varios insumos y un solo total. Los insumos con precio propio lo conservan;
+ * el resto del total queda en el primer insumo sin precio (los demás quedan marcados `sin_precio`).
+ */
+export async function crearCompraVarios(
+  db: SQLiteDatabase,
+  c: { items: { insumoId: number; cantidad: number; precio: number | null }[]; total: number; fecha: string; foto: string | null },
+) {
+  if (c.items.length === 1) {
+    const it = c.items[0];
+    return crearCompra(db, { insumoId: it.insumoId, cantidad: it.cantidad, precioTotal: it.precio ?? c.total, fecha: c.fecha, foto: c.foto });
+  }
+  const conPrecio = c.items.reduce((a, it) => a + (it.precio ?? 0), 0);
+  const hayLibres = c.items.some((it) => it.precio === null);
+  let resto = hayLibres ? c.total - conPrecio : 0;
+  const lote = Date.now();
+  await db.withTransactionAsync(async () => {
+    for (const it of c.items) {
+      const libre = it.precio === null;
+      const monto = libre ? resto : (it.precio as number);
+      if (libre) resto = 0;
+      await db.runAsync(
+        'INSERT INTO compras (insumo_id, cantidad, precio_total, fecha, foto, lote, sin_precio) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        it.insumoId,
+        it.cantidad,
+        monto,
+        c.fecha,
+        c.foto,
+        lote,
+        libre ? 1 : 0,
+      );
+    }
+  });
+}
+
 export async function borrarCompra(db: SQLiteDatabase, id: number) {
   await db.runAsync('DELETE FROM compras WHERE id = ?', id);
 }
 
+/** Borra todas las filas de una compra con varios insumos. */
+export async function borrarLote(db: SQLiteDatabase, lote: number) {
+  await db.runAsync('DELETE FROM compras WHERE lote = ?', lote);
+}
+
 export function listarCompras(db: SQLiteDatabase, desde: string, hasta: string): Promise<Compra[]> {
   return db.getAllAsync<Compra>(
-    `SELECT c.id, c.insumo_id, i.nombre AS insumo, c.cantidad, c.precio_total, c.fecha, c.foto
+    `SELECT c.id, c.insumo_id, i.nombre AS insumo, c.cantidad, c.precio_total, c.fecha, c.foto, c.lote, c.sin_precio
      FROM compras c JOIN insumos i ON i.id = c.insumo_id
      WHERE c.fecha BETWEEN ? AND ? ORDER BY c.fecha DESC, c.id DESC`,
     desde,
@@ -199,8 +239,9 @@ export function listarCompras(db: SQLiteDatabase, desde: string, hasta: string):
 }
 
 export function comprasPorInsumo(db: SQLiteDatabase, desde: string, hasta: string) {
-  return db.getAllAsync<{ insumo: string; es_bolsitas: number; compras: number; cantidad: number; total: number }>(
-    `SELECT i.nombre AS insumo, i.es_bolsitas, COUNT(*) AS compras, SUM(c.cantidad) AS cantidad, SUM(c.precio_total) AS total
+  return db.getAllAsync<{ insumo: string; es_bolsitas: number; compras: number; cantidad: number; total: number; mixto: number }>(
+    `SELECT i.nombre AS insumo, i.es_bolsitas, COUNT(*) AS compras, SUM(c.cantidad) AS cantidad, SUM(c.precio_total) AS total,
+            MAX(c.sin_precio) AS mixto
      FROM compras c JOIN insumos i ON i.id = c.insumo_id
      WHERE c.fecha BETWEEN ? AND ? GROUP BY i.id ORDER BY total DESC`,
     desde,
@@ -358,8 +399,8 @@ export async function detalleDia(db: SQLiteDatabase, fecha: string) {
        JOIN clientes c ON c.id = d.cliente_id WHERE p.fecha = ? ORDER BY p.id`,
       fecha,
     ),
-    db.getAllAsync<{ insumo: string; cantidad: number; precio_total: number }>(
-      `SELECT i.nombre AS insumo, c.cantidad, c.precio_total FROM compras c JOIN insumos i ON i.id = c.insumo_id
+    db.getAllAsync<{ insumo: string; cantidad: number; precio_total: number; sin_precio: number }>(
+      `SELECT i.nombre AS insumo, c.cantidad, c.precio_total, c.sin_precio FROM compras c JOIN insumos i ON i.id = c.insumo_id
        WHERE c.fecha = ? ORDER BY c.id`,
       fecha,
     ),
